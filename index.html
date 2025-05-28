@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Multi PNG Splitter to ZIP</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2em;
+      background: #f4f4f4;
+    }
+    .container {
+      background: white;
+      padding: 2em;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      max-width: 600px;
+      margin: auto;
+    }
+    input[type="file"] {
+      margin-bottom: 1em;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .status {
+      margin-top: 1em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Multi PNG Splitter (800×8000 → ZIP with Clean Names)</h2>
+    <input type="file" id="fileInput" accept="image/png" multiple>
+    <button onclick="splitAndZip()">Split & Download ZIP</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <script>
+    async function splitAndZip() {
+      const fileInput = document.getElementById("fileInput");
+      const statusDiv = document.getElementById("status");
+      statusDiv.innerText = '';
+
+      if (!fileInput.files.length) {
+        alert("Please upload one or more PNG images.");
+        return;
+      }
+
+      const zip = new JSZip();
+      const canvas = document.createElement("canvas");
+      canvas.width = 800;
+      canvas.height = 1000;
+      const ctx = canvas.getContext("2d");
+
+      const timestamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 14);
+
+      statusDiv.innerText = "Processing...";
+
+      for (let fileIndex = 0; fileIndex < fileInput.files.length; fileIndex++) {
+        const file = fileInput.files[fileIndex];
+        const img = await loadImageFromFile(file);
+
+        if (img.width !== 800 || img.height !== 8000) {
+          alert(`Image "${file.name}" must be 800x8000 pixels. Skipping.`);
+          continue;
+        }
+
+        const baseName = `image_${fileIndex + 1}_${timestamp}`;
+
+        for (let i = 0; i < 8; i++) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#FFFFFF"; // Adds a white background
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, -i * 1000);
+
+          const blob = await new Promise(resolve =>
+            canvas.toBlob(resolve, "image/png")
+          );
+          zip.file(`${baseName}_part_${i + 1}.png`, blob);
+        }
+      }
+
+      zip.generateAsync({ type: "blob" }).then(zipBlob => {
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "split_images.zip";
+        link.click();
+        statusDiv.innerText = "Download ready!";
+      });
+    }
+
+    function loadImageFromFile(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+  </script>
+</body>
+</html>
