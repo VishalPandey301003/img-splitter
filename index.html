@@ -69,7 +69,7 @@
         }
 
         const parts = Math.ceil(img.height / chunkHeight);
-        const baseName = `image_${fileIndex + 1}_${timestamp}`;
+        const baseName = `image_${fileIndex + 1}`;
 
         for (let i = 0; i < parts; i++) {
           const currentHeight = Math.min(chunkHeight, img.height - i * chunkHeight);
