@@ -1,52 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Flexible PNG Splitter to ZIP</title>
+  <meta charset="UTF-8" />
+  <title>PNG Splitter (800×H to ZIP)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      padding: 2em;
-      background: #f4f4f4;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9fb;
+      display: flex;
+      justify-content: center;
+      padding: 50px 20px;
     }
-    .container {
-      background: white;
-      padding: 2em;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      max-width: 600px;
-      margin: auto;
+
+    .app {
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+      max-width: 700px;
+      width: 100%;
     }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      color: #333;
+      text-align: center;
+    }
+
     input[type="file"] {
-      margin-bottom: 1em;
+      display: block;
+      margin: 0 auto 20px;
+      font-size: 14px;
     }
+
     button {
-      padding: 10px 20px;
+      background-color: #4f46e5;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 12px 24px;
       font-size: 16px;
       cursor: pointer;
+      display: block;
+      margin: 0 auto;
+      transition: background-color 0.3s ease;
     }
+
+    button:hover {
+      background-color: #4338ca;
+    }
+
     .status {
-      margin-top: 1em;
+      text-align: center;
+      margin-top: 20px;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .preview-grid {
+      margin-top: 30px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .preview-grid img {
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      background: #fff;
+      padding: 4px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h2>Flexible PNG Splitter (800×any → ZIP with Clean Names)</h2>
-    <input type="file" id="fileInput" accept="image/png" multiple>
+  <div class="app">
+    <h1>PNG Splitter (800×H to ZIP)</h1>
+    <input type="file" id="fileInput" accept="image/png" multiple />
     <button onclick="splitAndZip()">Split & Download ZIP</button>
     <div class="status" id="status"></div>
+    <div class="preview-grid" id="previewContainer"></div>
   </div>
 
   <script>
     async function splitAndZip() {
       const fileInput = document.getElementById("fileInput");
       const statusDiv = document.getElementById("status");
-      statusDiv.innerText = '';
+      const previewContainer = document.getElementById("previewContainer");
+
+      previewContainer.innerHTML = "";
+      statusDiv.textContent = "";
 
       if (!fileInput.files.length) {
-        alert("Please upload one or more PNG images.");
+        alert("Please select PNG files.");
         return;
       }
 
@@ -56,8 +106,7 @@
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
-      const timestamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 14);
-      statusDiv.innerText = "Processing...";
+      statusDiv.textContent = "Processing...";
 
       for (let fileIndex = 0; fileIndex < fileInput.files.length; fileIndex++) {
         const file = fileInput.files[fileIndex];
@@ -69,7 +118,7 @@
         }
 
         const parts = Math.ceil(img.height / chunkHeight);
-        const baseName = `image_${fileIndex + 1}`;
+        const baseName = file.name.replace(/\.png$/i, '');
 
         for (let i = 0; i < parts; i++) {
           const currentHeight = Math.min(chunkHeight, img.height - i * chunkHeight);
@@ -81,20 +130,26 @@
           ctx.fillRect(0, 0, standardWidth, currentHeight);
           ctx.drawImage(img, 0, -i * chunkHeight);
 
-          const blob = await new Promise(resolve =>
-            canvas.toBlob(resolve, "image/png")
-          );
-          zip.file(`${baseName}_part_${i + 1}.png`, blob);
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+          const fileName = `${baseName}_part_${i + 1}.png`;
+
+          zip.file(fileName, blob);
+
+          // Preview
+          const imgPreview = document.createElement("img");
+          imgPreview.src = URL.createObjectURL(blob);
+          previewContainer.appendChild(imgPreview);
         }
       }
 
+      // Final ZIP download
       zip.generateAsync({ type: "blob" }).then(zipBlob => {
         const url = URL.createObjectURL(zipBlob);
         const link = document.createElement("a");
         link.href = url;
         link.download = "split_images.zip";
         link.click();
-        statusDiv.innerText = "Download ready!";
+        statusDiv.textContent = "✅ Done! All chunks downloaded as ZIP.";
       });
     }
 
