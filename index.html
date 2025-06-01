@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PNG Splitter (800×H to ZIP)</title>
+  <title>PNG Splitter (800×1000 to ZIP)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
@@ -79,7 +79,7 @@
 </head>
 <body>
   <div class="app">
-    <h1>PNG Splitter (800×H to ZIP)</h1>
+    <h1>PNG Splitter (800×1000 to ZIP)</h1>
     <input type="file" id="fileInput" accept="image/png" multiple />
     <button onclick="splitAndZip()">Split & Download ZIP</button>
     <div class="status" id="status"></div>
@@ -111,38 +111,40 @@
       for (let fileIndex = 0; fileIndex < fileInput.files.length; fileIndex++) {
         const file = fileInput.files[fileIndex];
         const img = await loadImageFromFile(file);
-
-        if (img.width !== standardWidth) {
-          alert(`Image "${file.name}" must be ${standardWidth}px wide. Skipping.`);
-          continue;
-        }
-
-        const parts = Math.ceil(img.height / chunkHeight);
         const baseName = file.name.replace(/\.png$/i, '');
 
-        for (let i = 0; i < parts; i++) {
-          const currentHeight = Math.min(chunkHeight, img.height - i * chunkHeight);
-          canvas.width = standardWidth;
-          canvas.height = currentHeight;
+        const cols = Math.ceil(img.width / standardWidth);
+        const rows = Math.ceil(img.height / chunkHeight);
 
-          ctx.clearRect(0, 0, standardWidth, currentHeight);
-          ctx.fillStyle = "#FFFFFF";
-          ctx.fillRect(0, 0, standardWidth, currentHeight);
-          ctx.drawImage(img, 0, -i * chunkHeight);
+        for (let col = 0; col < cols; col++) {
+          for (let row = 0; row < rows; row++) {
+            const cropWidth = Math.min(standardWidth, img.width - col * standardWidth);
+            const cropHeight = Math.min(chunkHeight, img.height - row * chunkHeight);
 
-          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-          const fileName = `${baseName}_part_${i + 1}.png`;
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
 
-          zip.file(fileName, blob);
+            ctx.clearRect(0, 0, cropWidth, cropHeight);
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, cropWidth, cropHeight);
+            ctx.drawImage(
+              img,
+              -col * standardWidth,
+              -row * chunkHeight
+            );
 
-          // Preview
-          const imgPreview = document.createElement("img");
-          imgPreview.src = URL.createObjectURL(blob);
-          previewContainer.appendChild(imgPreview);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+            const fileName = `${baseName}_c${col + 1}_r${row + 1}.png`;
+
+            zip.file(fileName, blob);
+
+            const imgPreview = document.createElement("img");
+            imgPreview.src = URL.createObjectURL(blob);
+            previewContainer.appendChild(imgPreview);
+          }
         }
       }
 
-      // Final ZIP download
       zip.generateAsync({ type: "blob" }).then(zipBlob => {
         const url = URL.createObjectURL(zipBlob);
         const link = document.createElement("a");
