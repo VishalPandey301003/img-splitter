@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PNG Splitter (800×1000 to ZIP)</title>
+  <title>PNG Splitter (Zoom to 800px, then Crop)</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
@@ -79,7 +79,7 @@
 </head>
 <body>
   <div class="app">
-    <h1>PNG Splitter (800×1000 to ZIP)</h1>
+    <h1>PNG Splitter (Zoom to 800px, then Crop)</h1>
     <input type="file" id="fileInput" accept="image/png" multiple />
     <button onclick="splitAndZip()">Split & Download ZIP</button>
     <div class="status" id="status"></div>
@@ -101,7 +101,7 @@
       }
 
       const zip = new JSZip();
-      const standardWidth = 800;
+      const targetWidth = 800;
       const chunkHeight = 1000;
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
@@ -113,35 +113,36 @@
         const img = await loadImageFromFile(file);
         const baseName = file.name.replace(/\.png$/i, '');
 
-        const cols = Math.ceil(img.width / standardWidth);
-        const rows = Math.ceil(img.height / chunkHeight);
+        // --- Resize to 800px width if needed ---
+        const scale = targetWidth / img.width;
+        const scaledHeight = Math.floor(img.height * scale);
 
-        for (let col = 0; col < cols; col++) {
-          for (let row = 0; row < rows; row++) {
-            const cropWidth = Math.min(standardWidth, img.width - col * standardWidth);
-            const cropHeight = Math.min(chunkHeight, img.height - row * chunkHeight);
+        const resizedCanvas = document.createElement("canvas");
+        resizedCanvas.width = targetWidth;
+        resizedCanvas.height = scaledHeight;
+        const rctx = resizedCanvas.getContext("2d");
+        rctx.drawImage(img, 0, 0, targetWidth, scaledHeight);
 
-            canvas.width = cropWidth;
-            canvas.height = cropHeight;
+        const parts = Math.ceil(scaledHeight / chunkHeight);
 
-            ctx.clearRect(0, 0, cropWidth, cropHeight);
-            ctx.fillStyle = "#FFFFFF";
-            ctx.fillRect(0, 0, cropWidth, cropHeight);
-            ctx.drawImage(
-              img,
-              -col * standardWidth,
-              -row * chunkHeight
-            );
+        for (let i = 0; i < parts; i++) {
+          const currentHeight = Math.min(chunkHeight, scaledHeight - i * chunkHeight);
+          canvas.width = targetWidth;
+          canvas.height = currentHeight;
 
-            const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-            const fileName = `${baseName}_c${col + 1}_r${row + 1}.png`;
+          ctx.clearRect(0, 0, targetWidth, currentHeight);
+          ctx.fillStyle = "#FFFFFF";
+          ctx.fillRect(0, 0, targetWidth, currentHeight);
+          ctx.drawImage(resizedCanvas, 0, -i * chunkHeight);
 
-            zip.file(fileName, blob);
+          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+          const fileName = `${baseName}_part_${i + 1}.png`;
 
-            const imgPreview = document.createElement("img");
-            imgPreview.src = URL.createObjectURL(blob);
-            previewContainer.appendChild(imgPreview);
-          }
+          zip.file(fileName, blob);
+
+          const imgPreview = document.createElement("img");
+          imgPreview.src = URL.createObjectURL(blob);
+          previewContainer.appendChild(imgPreview);
         }
       }
 
@@ -149,9 +150,9 @@
         const url = URL.createObjectURL(zipBlob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "split_images.zip";
+        link.download = "split_images_zoomed.zip";
         link.click();
-        statusDiv.textContent = "✅ Done! All chunks downloaded as ZIP.";
+        statusDiv.textContent = "✅ Done! All zoomed-in chunks downloaded as ZIP.";
       });
     }
 
