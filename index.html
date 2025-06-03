@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>PNG Splitter</title>
+  <title>Image Splitter & Compressor</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/psd.js@4.0.0/dist/psd.min.js"></script>
   <style>
     body {
       margin: 0;
       font-family: 'Segoe UI', sans-serif;
-      background: #f9f9fb;
+      background: #eef1f7;
       display: flex;
       justify-content: center;
       padding: 50px 20px;
@@ -16,24 +17,37 @@
 
     .app {
       background: #fff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-      max-width: 700px;
+      padding: 40px;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      max-width: 800px;
       width: 100%;
     }
 
     h1 {
-      font-size: 20px;
-      margin-bottom: 20px;
-      color: #333;
+      font-size: 26px;
+      margin-bottom: 25px;
+      color: #2c3e50;
       text-align: center;
     }
 
-    input[type="file"] {
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
       display: block;
-      margin: 0 auto 20px;
-      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #444;
+    }
+
+    input[type="number"], select, input[type="file"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 15px;
     }
 
     button {
@@ -41,12 +55,13 @@
       color: white;
       border: none;
       border-radius: 6px;
-      padding: 12px 24px;
+      padding: 14px 26px;
       font-size: 16px;
       cursor: pointer;
       display: block;
-      margin: 0 auto;
+      width: 100%;
       transition: background-color 0.3s ease;
+      margin-top: 10px;
     }
 
     button:hover {
@@ -57,7 +72,7 @@
       text-align: center;
       margin-top: 20px;
       font-size: 14px;
-      color: #666;
+      color: #555;
     }
 
     .preview-grid {
@@ -67,7 +82,11 @@
       gap: 16px;
     }
 
-    .preview-grid img {
+    .preview-item {
+      text-align: center;
+    }
+
+    .preview-item img {
       width: 100%;
       height: auto;
       border-radius: 6px;
@@ -75,12 +94,42 @@
       background: #fff;
       padding: 4px;
     }
+
+    .preview-item span {
+      font-size: 13px;
+      color: #777;
+      display: block;
+      margin-top: 6px;
+    }
   </style>
 </head>
 <body>
   <div class="app">
-    <h1>PNG Splitter</h1>
-    <input type="file" id="fileInput" accept="image/png" multiple />
+    <h1>Image Splitter & Compressor</h1>
+
+    <div class="form-group">
+      <label for="fileInput">Select PNG/JPEG/JPG Files</label>
+      <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.psd" multiple />
+    </div>
+
+    <div class="form-group">
+      <label for="widthInput">Target Width (px) (default: 800)</label>
+      <input type="number" id="widthInput" placeholder="800" min="100" />
+    </div>
+
+    <div class="form-group">
+      <label for="heightInput">Chunk Height (px) (default: 1000)</label>
+      <input type="number" id="heightInput" placeholder="1000" min="100" />
+    </div>
+
+    <div class="form-group">
+      <label for="formatInput">Output Format (default: PNG)</label>
+      <select id="formatInput">
+        <option value="png" selected>PNG</option>
+        <option value="jpeg">JPEG</option>
+      </select>
+    </div>
+
     <button onclick="splitAndZip()">Split & Download ZIP</button>
     <div class="status" id="status"></div>
     <div class="preview-grid" id="previewContainer"></div>
@@ -96,13 +145,18 @@
       statusDiv.textContent = "";
 
       if (!fileInput.files.length) {
-        alert("Please select PNG files.");
+        alert("Please select image files.");
         return;
       }
 
+      const targetWidth = parseInt(document.getElementById("widthInput").value) || 800;
+      const chunkHeight = parseInt(document.getElementById("heightInput").value) || 1000;
+      const formatSelect = document.getElementById("formatInput");
+      const outputFormat = formatSelect.value || "png";
+      const mimeType = outputFormat === "png" ? "image/png" : "image/jpeg";
+      const extension = outputFormat === "png" ? "png" : "jpg";
+
       const zip = new JSZip();
-      const targetWidth = 800;
-      const chunkHeight = 1000;
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
@@ -111,9 +165,8 @@
       for (let fileIndex = 0; fileIndex < fileInput.files.length; fileIndex++) {
         const file = fileInput.files[fileIndex];
         const img = await loadImageFromFile(file);
-        const baseName = file.name.replace(/\.png$/i, '');
+        const baseName = file.name.replace(/\.(png|jpg|jpeg|psd)$/i, '');
 
-        // --- Resize to 800px width if needed ---
         const scale = targetWidth / img.width;
         const scaledHeight = Math.floor(img.height * scale);
 
@@ -135,14 +188,25 @@
           ctx.fillRect(0, 0, targetWidth, currentHeight);
           ctx.drawImage(resizedCanvas, 0, -i * chunkHeight);
 
-          const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
-          const fileName = `${baseName}_part_${i + 1}.png`;
+          let quality = 0.9;
+          let blob = await toSizedBlob(canvas, mimeType, quality);
 
+          while (blob.size > 1.5 * 1024 * 1024 && quality > 0.2) {
+            quality -= 0.05;
+            blob = await toSizedBlob(canvas, mimeType, quality);
+          }
+
+          const fileName = `${baseName}_part_${i + 1}.${extension}`;
           zip.file(fileName, blob);
 
           const imgPreview = document.createElement("img");
           imgPreview.src = URL.createObjectURL(blob);
-          previewContainer.appendChild(imgPreview);
+
+          const itemDiv = document.createElement("div");
+          itemDiv.className = "preview-item";
+          itemDiv.appendChild(imgPreview);
+          itemDiv.appendChild(Object.assign(document.createElement("span"), { textContent: fileName }));
+          previewContainer.appendChild(itemDiv);
         }
       }
 
@@ -150,19 +214,43 @@
         const url = URL.createObjectURL(zipBlob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "split_images_zoomed.zip";
+        link.download = "split_images.zip";
         link.click();
-        statusDiv.textContent = "✅ Done! All zoomed-in chunks downloaded as ZIP.";
+        statusDiv.textContent = "✅ Done! Your ZIP file is ready.";
       });
     }
 
-    function loadImageFromFile(file) {
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
+    function toSizedBlob(canvas, type, quality) {
+      return new Promise(resolve => {
+        canvas.toBlob(blob => resolve(blob), type, quality);
       });
+    }
+
+    async function loadImageFromFile(file) {
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (ext === 'psd') {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const psd = new PSD(new Uint8Array(reader.result));
+            psd.parse();
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = psd.image.toBase64();
+          };
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
+      } else {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = URL.createObjectURL(file);
+        });
+      }
     }
   </script>
 </body>
