@@ -14,7 +14,6 @@
       justify-content: center;
       padding: 50px 20px;
     }
-
     .app {
       background: #fff;
       padding: 40px;
@@ -23,25 +22,21 @@
       max-width: 800px;
       width: 100%;
     }
-
     h1 {
       font-size: 26px;
       margin-bottom: 25px;
       color: #2c3e50;
       text-align: center;
     }
-
     .form-group {
       margin-bottom: 20px;
     }
-
     label {
       display: block;
       font-weight: 600;
       margin-bottom: 6px;
       color: #444;
     }
-
     input[type="number"], select, input[type="file"] {
       width: 100%;
       padding: 10px 12px;
@@ -49,7 +44,6 @@
       border: 1px solid #ccc;
       font-size: 15px;
     }
-
     button {
       background-color: #4f46e5;
       color: white;
@@ -63,29 +57,24 @@
       transition: background-color 0.3s ease;
       margin-top: 10px;
     }
-
     button:hover {
       background-color: #4338ca;
     }
-
     .status {
       text-align: center;
       margin-top: 20px;
       font-size: 14px;
       color: #555;
     }
-
     .preview-grid {
       margin-top: 30px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
       gap: 16px;
     }
-
     .preview-item {
       text-align: center;
     }
-
     .preview-item img {
       width: 100%;
       height: auto;
@@ -94,7 +83,6 @@
       background: #fff;
       padding: 4px;
     }
-
     .preview-item span {
       font-size: 13px;
       color: #777;
@@ -106,30 +94,18 @@
 <body>
   <div class="app">
     <h1>Image Splitter & Compressor</h1>
-
     <div class="form-group">
       <label for="fileInput">Select PNG/JPEG/JPG Files</label>
       <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.psd" multiple />
     </div>
-
     <div class="form-group">
       <label for="widthInput">Target Width (px) (default: 800)</label>
       <input type="number" id="widthInput" placeholder="800" min="100" />
     </div>
-
     <div class="form-group">
       <label for="heightInput">Chunk Height (px) (default: 1000)</label>
       <input type="number" id="heightInput" placeholder="1000" min="100" />
     </div>
-
-    <div class="form-group">
-      <label for="formatInput">Output Format (default: PNG)</label>
-      <select id="formatInput">
-        <option value="png" selected>PNG</option>
-        <option value="jpeg">JPEG</option>
-      </select>
-    </div>
-
     <button onclick="splitAndZip()">Split & Download ZIP</button>
     <div class="status" id="status"></div>
     <div class="preview-grid" id="previewContainer"></div>
@@ -151,10 +127,6 @@
 
       const targetWidth = parseInt(document.getElementById("widthInput").value) || 800;
       const chunkHeight = parseInt(document.getElementById("heightInput").value) || 1000;
-      const formatSelect = document.getElementById("formatInput");
-      const outputFormat = formatSelect.value || "png";
-      const mimeType = outputFormat === "png" ? "image/png" : "image/jpeg";
-      const extension = outputFormat === "png" ? "png" : "jpg";
 
       const zip = new JSZip();
       const canvas = document.createElement("canvas");
@@ -188,15 +160,19 @@
           ctx.fillRect(0, 0, targetWidth, currentHeight);
           ctx.drawImage(resizedCanvas, 0, -i * chunkHeight);
 
-          let quality = 0.9;
-          let blob = await toSizedBlob(canvas, mimeType, quality);
-
-          while (blob.size > 1.4 * 1024 * 1024 && quality > 0.2) {
-            quality -= 0.05;
-            blob = await toSizedBlob(canvas, mimeType, quality);
+          // PNG compression fallback with JPEG if too big
+          let blob = await toSizedBlob(canvas, "image/png");
+          if (blob.size > 1.5 * 1024 * 1024) {
+            // fallback to JPEG compression if PNG is too large
+            let quality = 0.92;
+            do {
+              blob = await toSizedBlob(canvas, "image/jpeg", quality);
+              quality -= 0.05;
+            } while (blob.size > 1.5 * 1024 * 1024 && quality > 0.2);
           }
 
-          const fileName = `${baseName}_part_${i + 1}.${extension}`;
+          const ext = blob.type === "image/png" ? "png" : "jpg";
+          const fileName = `${baseName}_part_${i + 1}.${ext}`;
           zip.file(fileName, blob);
 
           const imgPreview = document.createElement("img");
@@ -216,11 +192,11 @@
         link.href = url;
         link.download = "split_images.zip";
         link.click();
-        statusDiv.textContent = "✅ Done! Your ZIP file is ready.";
+        statusDiv.textContent = "✅ Done! ZIP file is ready.";
       });
     }
 
-    function toSizedBlob(canvas, type, quality) {
+    function toSizedBlob(canvas, type, quality = 0.92) {
       return new Promise(resolve => {
         canvas.toBlob(blob => resolve(blob), type, quality);
       });
@@ -228,7 +204,6 @@
 
     async function loadImageFromFile(file) {
       const ext = file.name.split('.').pop().toLowerCase();
-
       if (ext === 'psd') {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
