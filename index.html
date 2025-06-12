@@ -191,7 +191,7 @@
           let quality = 0.9;
           let blob = await toSizedBlob(canvas, mimeType, quality);
 
-          while (blob.size > 1.5 * 1024 * 1024 && quality > 0.2) {
+          while (blob.size > 1.4 * 1024 * 1024 && quality > 0.2) {
             quality -= 0.05;
             blob = await toSizedBlob(canvas, mimeType, quality);
           }
